@@ -1,19 +1,23 @@
 import cv2
 import numpy as np
 
+
 class LaserDetector:
     def __init__(self, color, image=None):
-        self.CUTOFF_LENGTH = 20
+        self.CUTOFF_LENGTH = 10
         self.color = color
         self.contours = None
+        self.ellipse = None
         self.image = image
 
-    def mask(self, color=None, s_min=50, v_min=50):
+    def mask(self, color=None, s_min=50, v_min=50, return_images=False):
         if color is None:
             color = self.color
         if self.image is None:
             return None
         img = self.image
+        # cv2.imshow("img", img)
+        # cv2.waitKey(0)
         if img.ndim == 2:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
         elif img.ndim == 3 and img.shape[2] == 4:
@@ -23,6 +27,8 @@ class LaserDetector:
         h = int(hsv_color[0, 0, 0])
 
         hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        # cv2.imshow("hsv_image", hsv_image)
+        # cv2.waitKey(0)
 
         low_h = (h - self.CUTOFF_LENGTH) % 180
         high_h = (h + self.CUTOFF_LENGTH) % 180
@@ -42,10 +48,36 @@ class LaserDetector:
             mask = cv2.inRange(hsv_image, lower1, upper1) | cv2.inRange(hsv_image, lower2, upper2)
 
         masked = cv2.bitwise_and(img, img, mask=mask)
+        # cv2.imshow("masked", masked)
+        # cv2.waitKey(0)
+        if return_images:
+            return hsv_image, masked
         return mask
 
     def find_contours(self):
         masked = self.mask()
         self.contours, hierarchy = cv2.findContours(masked, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         drawn = cv2.drawContours(self.image, self.contours, -1, (255, 0, 0), 1)
+        # cv2.imshow("drawn", drawn)
+        # cv2.waitKey(0)
         return drawn
+
+    def fit_ellipse(self):
+        if not self.contours:
+            print("No contours found!")
+            return None
+        largest_contour = max(self.contours, key=cv2.contourArea)
+        ellipse = cv2.fitEllipse(largest_contour)
+        print(ellipse)
+        self.ellipse = ellipse
+        drawn = cv2.ellipse(self.image, ellipse, (0, 255, 0), 2)
+        return drawn, *self.ellipse
+
+    def detect_laser(self):
+        import time
+        start = time.perf_counter()
+        self.mask(self.color)
+        self.find_contours()
+        self.fit_ellipse()
+        end = time.perf_counter()
+        print(f"Time taken: {end - start} seconds")
