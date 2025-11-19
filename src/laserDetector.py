@@ -56,28 +56,29 @@ class LaserDetector:
 
     def find_contours(self):
         masked = self.mask()
-        self.contours, hierarchy = cv2.findContours(masked, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        self.contours, hierarchy = cv2.findContours(masked, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         drawn = cv2.drawContours(self.image, self.contours, -1, (255, 0, 0), 1)
         # cv2.imshow("drawn", drawn)
         # cv2.waitKey(0)
         return drawn
 
-    def fit_ellipse(self):
+    def fit_ellipse(self, contour_selection=1):
         if not self.contours:
             print("No contours found!")
             return None
-        largest_contour = max(self.contours, key=cv2.contourArea)
-        ellipse = cv2.fitEllipse(largest_contour)
+        largest_contours = sorted(self.contours, key=cv2.contourArea, reverse=True)
+        contour = largest_contours[contour_selection]
+        ellipse = cv2.fitEllipse(contour)
         print(ellipse)
         self.ellipse = ellipse
         drawn = cv2.ellipse(self.image, ellipse, (0, 255, 0), 2)
         return drawn, *self.ellipse
 
-    def detect_laser(self):
+    def detect_laser(self, contour_selection=0):
         import time
         start = time.perf_counter()
         self.mask(self.color)
         self.find_contours()
-        self.fit_ellipse()
+        self.fit_ellipse(contour_selection=contour_selection)
         end = time.perf_counter()
         print(f"Time taken: {end - start} seconds")
