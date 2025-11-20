@@ -1,14 +1,37 @@
 import cv2
 import numpy as np
 import laserDetector as ld
+try:
+    import gxipy
+except:
+    print("Daheng GalaxyView SDK not installed. \nEither install it or check the file path in python API")
 
 
 class CV_Manager:
     def __init__(self):
+        # Initialize data objects
         self.green = np.array([[[0, 255, 0]]], dtype=np.uint8)
         self.red = np.array([[[0, 0, 255]]], dtype=np.uint8)
         self.green_laser = ld.LaserDetector(self.green)
         self.red_laser = ld.LaserDetector(self.red)
+
+        # Declare device interfaces
+        self.device_manager = None
+        self.camera_stream = None
+
+    def initialize_camera_stream(self):
+        self.device_manager = gxipy.DeviceManager()
+        # The implementation here is slightly different from the C version of the API
+        device_num, device_info = self.camera_stream.update_device_list()
+        self.camera_stream.open_device_by_index(0)
+        self.camera_stream.stream_on()
+
+    def capture_image(self):
+        if self.camera_stream is None:
+            print("Camera stream not initialized!")
+            return None
+        image = self.camera_stream.data_stream[0].get_image()
+        return image
 
     def find_distance(self):
         # Here we collect the image from the buffer
@@ -44,13 +67,14 @@ class CV_Manager:
             y, x = int(round(pos[1])), int(round(pos[0]))
             pixel = image[y, x]
             gradient_list = []
-            gradient_list.append(((y,x), pixel))
+            gradient_list.append(((y, x), pixel))
             i = 0
-            while (1 - THRESHOLD) * 255 <= pixel[2] <= 255 and THRESHOLD * color[0][0][0] <= pixel[0] <= (2 - THRESHOLD) * \
+            while (1 - THRESHOLD) * 255 <= pixel[2] <= 255 and THRESHOLD * color[0][0][0] <= pixel[0] <= (
+                    2 - THRESHOLD) * \
                     color[0][0][0]:  # this will check the saturation and value
                 # walk in the positive direction and collect data
                 x_change = np.cos(angle) * i
-                y_change = np.sin(angle) * i # we need to round because cos and sin are floats and we need pixel values
+                y_change = np.sin(angle) * i  # we need to round because cos and sin are floats and we need pixel values
                 new_x = x + x_change
                 new_y = y + y_change
                 i += 1
@@ -63,17 +87,19 @@ class CV_Manager:
                     y, x = new_y, new_x
                     pixel_y, pixel_x = int(round(y)), int(round(x))
                     pixel = image[pixel_y, pixel_x]
-                    gradient_list.append(((pixel_y,pixel_x), pixel))
+                    gradient_list.append(((pixel_y, pixel_x), pixel))
             # now we need to walk in the negative direction doing the exact same thing
             i = 0
-            y, x = int(round(pos[1])), int(round(pos[0]))# reset the position to the starting point
+            y, x = int(round(pos[1])), int(round(pos[0]))  # reset the position to the starting point
             pixel = image[y, x]
             print("Now going backwards...")
-            while (1 - THRESHOLD) * 255 <= pixel[2] <= 255 and THRESHOLD * color[0][0][0] <= pixel[0] <= (2 - THRESHOLD) * \
+            while (1 - THRESHOLD) * 255 <= pixel[2] <= 255 and THRESHOLD * color[0][0][0] <= pixel[0] <= (
+                    2 - THRESHOLD) * \
                     color[0][0][0]:  # this will check the saturation and value
                 # walk in the negative direction and collect data
                 x_change = np.cos(angle) * -i
-                y_change = np.sin(angle) * -i # we need to round because cos and sin are floats and we need pixel values
+                y_change = np.sin(
+                    angle) * -i  # we need to round because cos and sin are floats and we need pixel values
                 new_x = x + x_change
                 new_y = y + y_change
                 i += 1
@@ -103,6 +129,10 @@ class CV_Manager:
         print(f"Number of pixels along major axis: {len(green_along_major)}")
         print(f"Number of pixels along minor axis: {len(green_along_minor)}")
 
+    def __del__(self):
+        print("Garbage collector: CV_Manager destroyed")
+        self.camera_stream.stream_off()
+        self.camera_stream.close_device()
 
 
 
